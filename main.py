@@ -138,7 +138,9 @@ class DesktopPet(QMainWindow):
             self.remaining_time = self.remaining_time.addSecs(-1)
         self.timer_display_action.setText(self.remaining_time.toString("hh:mm:ss"))  # 更新显示
         if self.remaining_time == QTime(0, 0, 0):
-            self.stop_focus()
+            self.timer.stop()  # 直接停止计时器
+            self.remaining_time = QTime(0, 0, 0)  # 重置时间
+            self.update_focus_controls()  # 更新控制状态
 
     def update_focus_controls(self):
         """根据倒计时状态更新按钮状态"""
