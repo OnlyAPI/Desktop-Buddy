@@ -60,7 +60,7 @@
 
 - `input`: 把需要去除背景的图放在这个文件夹，去除后会将文件备份到`conpleted`文件夹并清空本文件夹
 - `output`: `main.py` 文件读取的动图
-- `completed`: 备份`input`文件夹中已去除背景的图
+- `completed`: 备份`input`文件夹中已去除背景的原图
 
 ## 注意
 
