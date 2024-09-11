@@ -1,7 +1,11 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QMenu, QAction, QDesktopWidget, QFileDialog, QVBoxLayout, QWidget, QPushButton, QFrame, QWidgetAction
-from PyQt5.QtGui import QMovie, QCursor
+from PyQt5.QtGui import QMovie, QCursor, QFont
 from PyQt5.QtCore import Qt, QTimer, QTime
+import os
+import random
+
+OUTPUT_PATH = './output'
 
 class DesktopPet(QMainWindow):
     def __init__(self):
@@ -15,9 +19,12 @@ class DesktopPet(QMainWindow):
         self.pet_label = QLabel(self)
         self.pet_label.setScaledContents(True)  # 确保GIF可以根据标签大小缩放
 
+        files = os.listdir(OUTPUT_PATH)
+        image_files = [os.path.join(OUTPUT_PATH, file) for file in files if file.lower().endswith('.gif')]
+
         # 配置多个图标
-        self.icons = ["./images/pet.gif"]  # 使用你自己的GIF文件路径
-        self.current_icon_index = 0  # 当前显示的图标索引
+        self.icons = image_files  # 使用你自己的GIF文件路径
+        self.current_icon_index = random.randint(0, len(image_files) - 1)  # 当前显示的图标索引
         self.load_pet_icon(self.icons[self.current_icon_index])
 
         # 初始化专注功能
@@ -25,6 +32,26 @@ class DesktopPet(QMainWindow):
         self.timer = QTimer(self)  # 用于倒计时
         self.timer.timeout.connect(self.update_timer_display)
         self.remaining_time = QTime(0, 0, 0)  # 初始化剩余时间为 0
+
+        # 初始化提醒文本标签
+        self.reminder_label = QLabel("专注时间到了，休息一下吧！", self)
+        self.reminder_label.setFont(QFont("Arial", 16, QFont.Bold))
+        self.reminder_label.setStyleSheet("""
+            QLabel {
+                color: red;
+                font-size: 20px;
+                font-weight: bold;
+                background-color: yellow;
+                padding: 5px;
+                border: 2px solid red;
+            }
+        """)
+        self.reminder_label.setAlignment(Qt.AlignCenter)
+        self.reminder_label.hide()  # 初始状态隐藏
+
+        self.reminder_timer = QTimer(self)  # 用于隐藏提醒标签的定时器
+        self.reminder_timer.timeout.connect(self.hide_reminder)
+
 
         # 初始化鼠标跟踪和菜单
         self.is_following_mouse = False
@@ -47,7 +74,8 @@ class DesktopPet(QMainWindow):
     def create_context_menu(self):
         """创建右键菜单"""
         self.contextMenu = QMenu(self)
-        change_icon_action = QAction('更换图标', self)
+        change_sys_icon_action = QAction('换一换', self)
+        change_local_icon_action = QAction('换我的图', self)
         exit_action = QAction('退出', self)
 
 
@@ -56,23 +84,6 @@ class DesktopPet(QMainWindow):
         self.timer_display_action = QAction('0:00:00', self)  # 显示倒计时
         self.timer_display_action.setEnabled(False)  # 只用来显示时间，不可点击
 
-
-        # 创建一个带有分隔线的部件
-        self.separator_action = QWidgetAction(self)
-        separator_widget = QWidget(self)  # 用 QWidget 包装 QFrame
-        layout = QVBoxLayout(separator_widget)  # 使用垂直布局
-        layout.setContentsMargins(0, 5, 0, 5)  # 设置上下边距，确保分隔线显示
-        layout.setSpacing(0)  # 去除控件之间的间隔
-        
-        # 创建 QFrame 作为分隔线
-        separator_line = QFrame(separator_widget)
-        separator_line.setFrameShape(QFrame.HLine)  # 水平线
-        separator_line.setFrameShadow(QFrame.Sunken)  # 凹陷效果
-        separator_line.setFixedHeight(2)  # 设置分隔线高度
-        separator_line.setStyleSheet("background-color: #FF0000;")  # 设置分隔线颜色
-        layout.addWidget(separator_line)  # 将分隔线添加到布局中
-
-        self.separator_action.setDefaultWidget(separator_widget)  # 设置分隔线的默认小部件
 
         # 创建其他专注子菜单的选项
         self.start_focus_action = QAction('开始专注', self)
@@ -83,19 +94,20 @@ class DesktopPet(QMainWindow):
 
         # 添加专注子菜单的选项
         self.focus_menu.addAction(self.timer_display_action)
-        self.focus_menu.addAction(self.separator_action)  # 添加分隔线
         self.focus_menu.addAction(self.start_focus_action)
         self.focus_menu.addAction(self.add_time_action)
         self.focus_menu.addAction(self.subtract_time_action)
         self.focus_menu.addAction(self.stop_focus_action)
 
         # 添加动作到菜单
-        self.contextMenu.addAction(change_icon_action)
+        self.contextMenu.addAction(change_sys_icon_action)
+        self.contextMenu.addAction(change_local_icon_action)
         self.contextMenu.addMenu(self.focus_menu)  # 添加子菜单到主菜单
         self.contextMenu.addAction(exit_action)
 
         # 连接动作
-        change_icon_action.triggered.connect(self.change_icon)
+        change_sys_icon_action.triggered.connect(self.change_sys_icon)
+        change_local_icon_action.triggered.connect(self.change_local_icon)
         self.start_focus_action.triggered.connect(self.start_focus)
         self.add_time_action.triggered.connect(self.add_time)
         self.subtract_time_action.triggered.connect(self.subtract_time)
@@ -107,7 +119,7 @@ class DesktopPet(QMainWindow):
 
     def start_focus(self):
         """开始专注倒计时"""
-        self.remaining_time = QTime(0, 15, 0)  # 初始化为15分钟
+        self.remaining_time = QTime(0, 0, 5)  # 初始化为15分钟
         self.timer.start(1000)  # 每秒更新一次
         self.update_focus_controls()
 
@@ -140,7 +152,62 @@ class DesktopPet(QMainWindow):
         if self.remaining_time == QTime(0, 0, 0):
             self.timer.stop()  # 直接停止计时器
             self.remaining_time = QTime(0, 0, 0)  # 重置时间
+            self.show_reminder()  # 显示提醒
             self.update_focus_controls()  # 更新控制状态
+
+
+    def show_reminder(self):
+        """显示休息提醒"""
+
+        # 获取屏幕大小
+        screen_rect = QDesktopWidget().availableGeometry()
+        screen_width = screen_rect.width()
+        screen_height = screen_rect.height()
+
+        # 动图的当前全局位置
+        pet_global_pos = self.mapToGlobal(self.pet_label.pos())
+        pet_x = pet_global_pos.x()
+        pet_y = pet_global_pos.y()
+
+        # 动图的高度和宽度
+        pet_height = self.pet_label.height()
+        pet_width = self.pet_label.width()
+
+        # 提醒文本的宽度和高度
+        reminder_width = 300
+        reminder_height = 50
+
+        # 默认情况下，显示在动图的下方
+        reminder_x = pet_x + (pet_width - reminder_width) // 2  # 水平居中于动图
+        reminder_y = pet_y + pet_height + 10  # 动图下方10个像素
+
+        # 检查下方空间是否足够
+        if reminder_y + reminder_height > screen_height:  # 下方空间不足
+            reminder_y = pet_y - reminder_height - 10  # 动图上方10个像素
+
+        # 检查上方空间是否足够
+        if reminder_y < 0:  # 上方空间不足
+            reminder_y = pet_y + pet_height + 10  # 动图下方10个像素
+
+        # 调整提醒文本的位置以确保在屏幕范围内
+        if reminder_x < 0:  # 如果超出屏幕左侧
+            reminder_x = 0
+        elif reminder_x + reminder_width > screen_width:  # 如果超出屏幕右侧
+            reminder_x = screen_width - reminder_width
+
+        # 设置调整后的提醒文本位置
+        self.reminder_label.setGeometry(reminder_x, reminder_y, reminder_width, reminder_height)
+
+        # 显示提醒
+        self.reminder_label.show()
+        self.reminder_timer.start(5000)  # 5秒后自动隐藏提醒
+
+
+    def hide_reminder(self):
+        """隐藏休息提醒"""
+        self.reminder_label.hide()
+        self.reminder_timer.stop()
+
 
     def update_focus_controls(self):
         """根据倒计时状态更新按钮状态"""
@@ -151,14 +218,18 @@ class DesktopPet(QMainWindow):
         self.stop_focus_action.setEnabled(is_timing)  # 退出专注
 
 
-    def change_icon(self):
+    def change_local_icon(self):
         """更改图标功能"""
         # 打开文件对话框选择新的图标
         icon_path, _ = QFileDialog.getOpenFileName(self, "选择新的宠物图标", "", "GIF Files (*.gif)")
         if icon_path:
-            self.icons.append(icon_path)  # 将新的图标路径添加到列表中
+            # self.icons.append(icon_path)  # 将新的图标路径添加到列表中
             self.load_pet_icon(icon_path)  # 加载并设置新的图标
 
+    def change_sys_icon(self):
+        """随机更换系统自带动图"""
+        self.current_icon_index = random.randint(0, len(self.icons) - 1) 
+        self.load_pet_icon(self.icons[self.current_icon_index])
 
     def mousePressEvent(self, event):
         """鼠标按下事件处理"""
@@ -182,16 +253,6 @@ class DesktopPet(QMainWindow):
         self.is_following_mouse = False
 
 
-    def speak(self):
-        """说话功能"""
-        print("宠物说：你好！")
-
-
-    def jump(self):
-        """跳跃功能"""
-        print("宠物跳跃！")
-
-
     def changeImage(self):
         """修改图标"""
         # 打开文件对话框选择新的图标
@@ -200,8 +261,15 @@ class DesktopPet(QMainWindow):
             self.icons.append(icon_path)  # 将新的图标路径添加到列表中
             self.load_pet_icon(icon_path)  # 加载并设置新的图标
 
+    def center(self):
+        """居中显示窗口"""
+        screen_geometry = QDesktopWidget().screenGeometry()
+        self.move((screen_geometry.width() - self.width()) // 2, (screen_geometry.height() - self.height()) // 2)
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     pet = DesktopPet()
     pet.show()
+    pet.center()  # 居中显示
     sys.exit(app.exec_())
